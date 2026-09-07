@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>会议签到</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;-webkit-tap-highlight-color:transparent;}
+.seat{transition:all .15s ease;}
+.seat-highlight{background:#2563eb!important;border:2px solid #1d4ed8!important;color:#fff!important;box-shadow:0 6px 18px rgba(37,99,235,.55);animation:pulse 1.6s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 6px 18px rgba(37,99,235,.55);}50%{box-shadow:0 6px 24px rgba(37,99,235,.9);}}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+<header style="background:#0f2742;" class="text-white shadow-md">
+<div class="max-w-2xl mx-auto px-4 py-3 text-center">
+<div class="text-xs text-slate-300">会议签到</div>
+<h1 id="mt" class="text-base font-semibold">加载中…</h1>
+</div>
+</header>
+<main class="max-w-2xl mx-auto px-4 py-6">
+<section id="pickerView" class="hidden bg-white rounded-xl shadow-sm p-6">
+<div class="text-center mb-4"><div class="w-14 h-14 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-2xl mx-auto mb-2">📋</div><h2 class="text-lg font-semibold">选择会议</h2></div>
+<div id="pickerList"></div>
+</section>
+<section id="formView" class="bg-white rounded-xl shadow-sm p-6">
+<div class="text-center mb-5">
+<div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-2">📝</div>
+<h2 class="text-lg font-semibold">参会人员签到</h2>
+<p class="text-sm text-slate-500">请填写真实信息完成签到</p>
+</div>
+<form id="ckForm" class="space-y-4">
+<div><label class="block text-sm font-medium mb-1">姓名 <span class="text-red-500">*</span></label><input id="ckName" type="text" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="请输入姓名" /></div>
+<div><label class="block text-sm font-medium mb-1">单位 <span class="text-red-500">*</span></label><input id="ckUnit" type="text" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="请输入单位名称" /></div>
+<div id="ckMsg" class="text-sm text-red-600 hidden"></div>
+<button type="submit" id="ckSubmit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium text-base">签 到</button>
+</form>
+<p class="text-xs text-slate-400 mt-4 text-center">签到后系统将匹配您的座位并高亮显示</p>
+</section>
+<section id="successView" class="hidden">
+<div class="bg-white rounded-xl shadow-sm p-6 text-center">
+<div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-3">✅</div>
+<h2 class="text-lg font-semibold text-emerald-700">签到成功</h2>
+<p class="text-sm text-slate-500 mt-1" id="suInfo"></p>
+<div class="mt-5 inline-block bg-blue-50 border border-blue-200 rounded-lg px-5 py-3"><div class="text-xs text-slate-500">您的座位</div><div class="text-2xl font-bold text-blue-700" id="suSeat">—</div></div>
+</div>
+<div class="bg-white rounded-xl shadow-sm p-4 mt-4">
+<h3 class="font-semibold text-sm mb-3 text-center">座位图（您的座位已高亮）</h3>
+<div id="seatMap" class="overflow-x-auto pb-2"></div>
+<p class="text-xs text-slate-400 mt-2 text-center">仅展示本人座位，其他人员信息已隐藏</p>
+</div>
+<button id="againBtn" class="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg text-sm">重新签到</button>
+</section>
+<section id="failView" class="hidden bg-white rounded-xl shadow-sm p-6 text-center">
+<div class="w-16 h-16 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-3xl mx-auto mb-3">⚠️</div>
+<h2 class="text-lg font-semibold text-orange-700">签到未通过</h2>
+<p class="text-sm text-slate-500 mt-1" id="failMsg"></p>
+<button id="retryBtn" class="w-full mt-5 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm">返回签到</button>
+</section>
+<section id="invalidView" class="hidden bg-white rounded-xl shadow-sm p-8 text-center">
+<div class="text-4xl mb-3">🔗</div><h2 class="font-semibold">签到链接无效</h2><p class="text-sm text-slate-500 mt-1">未找到对应会议，请重新扫码或联系会务人员。</p>
+</section>
+</main>
+<footer class="text-center text-xs text-slate-400 py-6">会议签到系统 · 政务会议版</footer>
+<script>
+(function(){
+  try {
+    var raw = localStorage.getItem('meeting_checkin_data');
+    if (!raw) {
+      var seed = {
+        meetings: [{
+          id: 'm_demo_001',
+          name: '示例政务会议',
+          date: '2026-09-10',
+          location: '第一会议室',
+          rows: 3, cols: 4,
+          seats: [
+            {row:1,col:1,name:'张明',unit:'省政府办公厅',phone:'13800138001',checked:false,checkinTime:null},
+            {row:1,col:2,name:'李华',unit:'省科技厅',phone:'13800138002',checked:false,checkinTime:null},
+            {row:1,col:3,name:'王强',unit:'省财政厅',phone:'13800138003',checked:false,checkinTime:null},
+            {row:1,col:4,name:'赵芳',unit:'省发改委',phone:'13800138004',checked:false,checkinTime:null},
+            {row:2,col:1,name:'刘伟',unit:'省工信厅',phone:'13800138005',checked:false,checkinTime:null},
+            {row:2,col:2,name:'陈静',unit:'省教育厅',phone:'13800138006',checked:false,checkinTime:null},
+            {row:2,col:3,name:'杨勇',unit:'省卫健委',phone:'13800138007',checked:false,checkinTime:null},
+            {row:2,col:4,name:'黄丽',unit:'省民政厅',phone:'13800138008',checked:false,checkinTime:null},
+            {row:3,col:1,name:'周涛',unit:'省公安厅',phone:'13800138009',checked:false,checkinTime:null},
+            {row:3,col:2,name:'吴敏',unit:'省司法厅',phone:'13800138010',checked:false,checkinTime:null},
+            {row:3,col:3,name:'',unit:'',phone:'',checked:false,checkinTime:null},
+            {row:3,col:4,name:'',unit:'',phone:'',checked:false,checkinTime:null}
+          ]
+        }],
+        admin: {username:'admin',password:'admin123'},
+        currentMeetingId: 'm_demo_001'
+      };
+      localStorage.setItem('meeting_checkin_data', JSON.stringify(seed));
+    }
+  } catch(e){}
+})();
+</script>
+<script>
+/* ============================================================
+ * 会议签到系统 - 公共数据层
+ * 支持两种模式：
+ *   方案A：localStorage 纯前端（默认）
+ *   方案B：Node.js 后端（设置 window.API_BASE 启用）
+ * ============================================================ */
+const Store = (function () {
+  // 后端地址：若页面注入 window.API_BASE 则启用在线模式
+  const API_BASE = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : '';
+
+  const useBackend = () => API_BASE && API_BASE.length > 0;
+
+  const DEFAULT_ADMIN = { username: 'admin', password: 'admin123' };
+
+  function defaultData() {
+    return {
+      meetings: [],
+      admin: { ...DEFAULT_ADMIN },
+      currentMeetingId: null
+    };
+  }
+
+  /* ---------- 本地存储 ---------- */
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem('meeting_checkin_data');
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore */ }
+    const d = defaultData();
+    saveLocal(d);
+    return d;
+  }
+  function saveLocal(data) {
+    localStorage.setItem('meeting_checkin_data', JSON.stringify(data));
+  }
+
+  /* ---------- 通用读写 ---------- */
+  async function getAll() {
+    if (useBackend()) {
+      const res = await fetch(API_BASE + '/api/data');
+      return await res.json();
+    }
+    return loadLocal();
+  }
+  async function saveAll(data) {
+    if (useBackend()) {
+      const res = await fetch(API_BASE + '/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      return await res.json();
+    }
+    saveLocal(data);
+    return { ok: true };
+  }
+
+  /* ---------- 会议操作 ---------- */
+  async function listMeetings() {
+    const data = await getAll();
+    return data.meetings || [];
+  }
+  async function getMeeting(id) {
+    const data = await getAll();
+    return (data.meetings || []).find(m => m.id === id);
+  }
+  async function getCurrentMeeting() {
+    const data = await getAll();
+    if (!data.currentMeetingId) return null;
+    return (data.meetings || []).find(m => m.id === data.currentMeetingId) || null;
+  }
+  async function setCurrentMeeting(id) {
+    const data = await getAll();
+    data.currentMeetingId = id;
+    await saveAll(data);
+  }
+  function genId() {
+    return 'm' + Date.now() + Math.floor(Math.random() * 1000);
+  }
+  async function createMeeting(meeting) {
+    const data = await getAll();
+    const m = {
+      id: genId(),
+      name: meeting.name || '未命名会议',
+      date: meeting.date || '',
+      location: meeting.location || '',
+      rows: meeting.rows || 5,
+      cols: meeting.cols || 8,
+      seats: meeting.seats || [],
+      createdAt: Date.now()
+    };
+    data.meetings.push(m);
+    if (!data.currentMeetingId) data.currentMeetingId = m.id;
+    await saveAll(data);
+    return m;
+  }
+  async function updateMeeting(id, patch) {
+    const data = await getAll();
+    const m = data.meetings.find(x => x.id === id);
+    if (!m) return null;
+    Object.assign(m, patch);
+    await saveAll(data);
+    return m;
+  }
+  async function deleteMeeting(id) {
+    const data = await getAll();
+    data.meetings = data.meetings.filter(m => m.id !== id);
+    if (data.currentMeetingId === id) {
+      data.currentMeetingId = (data.meetings[0] && data.meetings[0].id) || null;
+    }
+    await saveAll(data);
+  }
+
+  /* ---------- 管理员账号 ---------- */
+  async function getAdmin() {
+    const data = await getAll();
+    return data.admin || DEFAULT_ADMIN;
+  }
+  async function setAdmin(username, password) {
+    const data = await getAll();
+    data.admin = { username, password };
+    await saveAll(data);
+  }
+  async function adminLogin(username, password) {
+    const admin = await getAdmin();
+    if (username === admin.username && password === admin.password) {
+      const token = btoa(username + ':' + Date.now());
+      sessionStorage.setItem('admin_token', token);
+      sessionStorage.setItem('admin_user', username);
+      return { ok: true, token };
+    }
+    return { ok: false, msg: '用户名或密码错误' };
+  }
+  function isAdminLogged() {
+    return !!sessionStorage.getItem('admin_token');
+  }
+  function adminLogout() {
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_user');
+  }
+
+  /* ---------- 座位操作 ---------- */
+  function buildEmptySeats(rows, cols) {
+    const seats = [];
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= cols; c++) {
+        seats.push({
+          row: r, col: c,
+          name: '', unit: '', phone: '',
+          checked: false, checkinTime: null
+        });
+      }
+    }
+    return seats;
+  }
+  async function setSeats(meetingId, seats) {
+    const data = await getAll();
+    const m = data.meetings.find(x => x.id === meetingId);
+    if (!m) return;
+    m.seats = seats;
+    let maxR = 0, maxC = 0;
+    seats.forEach(s => {
+      if (s.row > maxR) maxR = s.row;
+      if (s.col > maxC) maxC = s.col;
+    });
+    m.rows = maxR || m.rows;
+    m.cols = maxC || m.cols;
+    await saveAll(data);
+  }
+
+  /* ---------- 签到匹配（姓名+单位） ---------- */
+  async function checkin(meetingId, name, unit) {
+    const data = await getAll();
+    const m = data.meetings.find(x => x.id === meetingId);
+    if (!m) return { ok: false, msg: '会议不存在' };
+    const seats = m.seats || [];
+    const n = (name || '').trim();
+    const u = (unit || '').trim();
+
+    // 优先姓名+单位双重匹配
+    let target = seats.find(s =>
+      s.name && s.name.trim() === n &&
+      s.unit && s.unit.trim() === u
+    );
+    // 兼容：未填单位时仅姓名匹配且唯一
+    if (!target && !u) {
+      const byName = seats.filter(s => s.name && s.name.trim() === n);
+      if (byName.length === 1) target = byName[0];
+    }
+    if (!target) {
+      return { ok: false, msg: '未匹配到对应座位，请联系会务人员' };
+    }
+    target.checked = true;
+    target.checkinTime = new Date().toISOString();
+    await saveAll(data);
+    return { ok: true, seat: target, meeting: m };
+  }
+
+  /* ---------- 统计 ---------- */
+  function stats(meeting) {
+    const seats = (meeting && meeting.seats) || [];
+    const assigned = seats.filter(s => s.name);
+    const checked = seats.filter(s => s.checked);
+    const unchecked = assigned.filter(s => !s.checked);
+    const empty = seats.filter(s => !s.name);
+    return {
+      total: seats.length,
+      assigned: assigned.length,
+      checked: checked.length,
+      unchecked: unchecked.length,
+      empty: empty.length
+    };
+  }
+
+  /* ---------- 导入解析（CSV / TSV） ---------- */
+  function parseImport(text) {
+    const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return [];
+    const seats = [];
+    let startIdx = 0;
+    const first = lines[0].split(/[,\t]/).map(p => (p || '').trim());
+    const firstRow = parseInt(first[0], 10);
+    const firstCol = parseInt(first[1], 10);
+    if (isNaN(firstRow) || isNaN(firstCol)) startIdx = 1;
+    for (let i = startIdx; i < lines.length; i++) {
+      const parts = lines[i].split(/[,\t]/).map(p => (p || '').trim());
+      if (parts.length < 3) continue;
+      const row = parseInt(parts[0], 10);
+      const col = parseInt(parts[1], 10);
+      if (isNaN(row) || isNaN(col)) continue;
+      seats.push({
+        row, col,
+        name: parts[2] || '',
+        unit: parts[3] || '',
+        phone: parts[4] || '',
+        checked: false,
+        checkinTime: null
+      });
+    }
+    return seats;
+  }
+
+  /* ---------- 导出 CSV ---------- */
+  function toCSV(meeting) {
+    const seats = (meeting && meeting.seats) || [];
+    const header = '排,列,姓名,单位,电话,签到状态,签到时间';
+    const rows = seats.map(s => [
+      s.row, s.col, s.name, s.unit, s.phone,
+      s.checked ? '已签到' : '未签到',
+      s.checkinTime || ''
+    ].map(v => '"' + (v === undefined || v === null ? '' : v).toString().replace(/"/g, '""') + '"').join(','));
+    return '\ufeff' + header + '\n' + rows.join('\n');
+  }
+
+  return {
+    API_BASE, useBackend,
+    listMeetings, getMeeting, getCurrentMeeting, setCurrentMeeting,
+    createMeeting, updateMeeting, deleteMeeting,
+    buildEmptySeats, setSeats,
+    checkin,
+    getAdmin, setAdmin,
+    adminLogin, isAdminLogged, adminLogout,
+    stats, parseImport, toCSV,
+    getAll
+  };
+})();
+
+// 暴露到全局
+window.Store = Store;
+</script>
+<script>
+/* ============================================================
+ * 会议签到系统 - 参会人员签到页（手机端）
+ * 隐私：仅展示本人座位，其他人员信息隐藏
+ * ============================================================ */
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  const params = new URLSearchParams(location.search);
+  const meetingId = params.get('m') || '';
+  let meeting = null;
+  let mySeat = null;
+
+  function escape(s) {
+    return (s === undefined || s === null ? '' : s).toString()
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  async function init() {
+    const meetings = await Store.listMeetings();
+    if (!meetingId) {
+      // 未带参数：只有一个会议直接进，多个则让用户选
+      if (meetings.length === 1) {
+        enterMeeting(meetings[0]);
+        return;
+      }
+      showMeetingPicker(meetings);
+      return;
+    }
+    meeting = await Store.getMeeting(meetingId);
+    if (!meeting) {
+      // 参数无效：也给选择机会
+      if (meetings.length === 1) {
+        enterMeeting(meetings[0]);
+        return;
+      }
+      showMeetingPicker(meetings);
+      return;
+    }
+    enterMeeting(meeting);
+  }
+
+  function enterMeeting(m) {
+    meeting = m;
+    if (m && m.id) meetingId = m.id;  // 同步更新 meetingId，供签到时使用
+    $('mt').textContent = m.name + (m.date ? ' · ' + m.date : '');
+    show('formView');
+  }
+
+  function showMeetingPicker(meetings) {
+    const box = $('pickerList');
+    if (!meetings.length) {
+      box.innerHTML = `<div class="text-center text-slate-400 py-8">暂无可用会议</div>`;
+    } else {
+      box.innerHTML = `
+        <p class="text-sm text-slate-500 text-center mb-3">请选择要签到的会议</p>
+        <div class="space-y-2">
+          ${meetings.map(m => `
+            <button class="meeting-btn w-full text-left p-3 border border-slate-200 rounded-lg hover:bg-slate-50 active:bg-slate-100" data-id="${escape(m.id)}">
+              <div class="font-medium">${escape(m.name)}</div>
+              <div class="text-xs text-slate-400 mt-0.5">${escape(m.date || '未设置日期')} · ${escape(m.location || '未设置地点')}</div>
+            </button>
+          `).join('')}
+        </div>`;
+      box.querySelectorAll('.meeting-btn').forEach(b => {
+        b.addEventListener('click', () => {
+          const id = b.dataset.id;
+          const m = meetings.find(x => x.id === id);
+          if (m) {
+            history.replaceState(null, '', '?m=' + id);
+            enterMeeting(m);
+          }
+        });
+      });
+    }
+    show('pickerView');
+  }
+
+  function show(view) {
+    ['formView', 'successView', 'failView', 'invalidView', 'pickerView'].forEach(v => $(v).classList.add('hidden'));
+    $(view).classList.remove('hidden');
+  }
+
+  $('ckForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('ckName').value.trim();
+    const unit = $('ckUnit').value.trim();
+    const msg = $('ckMsg');
+    msg.classList.add('hidden');
+
+    if (!name) {
+      msg.textContent = '请填写姓名';
+      msg.classList.remove('hidden');
+      return;
+    }
+    if (!unit) {
+      msg.textContent = '请填写单位';
+      msg.classList.remove('hidden');
+      return;
+    }
+
+    const btn = $('ckSubmit');
+    btn.disabled = true;
+    btn.textContent = '签到中…';
+    try {
+      const r = await Store.checkin(meetingId, name, unit);
+      if (r.ok) {
+        mySeat = r.seat;
+        renderSuccess();
+        show('successView');
+      } else {
+        $('failMsg').textContent = r.msg || '未匹配到座位';
+        show('failView');
+      }
+    } catch (err) {
+      $('failMsg').textContent = '签到失败：' + err.message;
+      show('failView');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '签 到';
+    }
+  });
+
+  function renderSuccess() {
+    $('suInfo').textContent = `${mySeat.name} · ${mySeat.unit}`;
+    $('suSeat').textContent = `第${mySeat.row}排 第${mySeat.col}座`;
+
+    // 渲染座位图，仅本人座位高亮，其他座位显示模糊标记
+    const seats = meeting.seats || [];
+    const rows = meeting.rows || 1;
+    const cols = meeting.cols || 1;
+    const byRow = {};
+    seats.forEach(s => {
+      if (!byRow[s.row]) byRow[s.row] = {};
+      byRow[s.row][s.col] = s;
+    });
+
+    let table = '';
+    for (let r = 1; r <= rows; r++) {
+      let cells = '';
+      for (let c = 1; c <= cols; c++) {
+        const s = byRow[r] && byRow[r][c];
+        const isMine = s && mySeat && s.row === mySeat.row && s.col === mySeat.col;
+        let cls, label;
+        if (isMine) {
+          cls = 'seat-highlight';
+          label = '我';
+        } else if (s && s.name) {
+          // 隐藏他人信息
+          cls = 'bg-slate-200 border border-slate-300 text-slate-400';
+          label = '●';
+        } else {
+          cls = 'bg-slate-50 border border-slate-200 text-slate-300';
+          label = '';
+        }
+        cells += `<td class="p-1"><div class="seat ${cls} rounded-lg w-9 h-9 sm:w-11 sm:h-11 flex items-center justify-center text-[10px]">${label}</div></td>`;
+      }
+      table += `<tr><td class="text-center text-[10px] text-slate-400 pr-1">${r}</td>${cells}</tr>`;
+    }
+    $('seatMap').innerHTML = `<table class="border-collapse mx-auto"><tbody>${table}</tbody></table>`;
+  }
+
+  $('retryBtn').onclick = () => show('formView');
+  $('againBtn').onclick = () => {
+    $('ckName').value = '';
+    $('ckUnit').value = '';
+    mySeat = null;
+    show('formView');
+  };
+
+  init();
+})();
+</script>
+</body>
+</html>

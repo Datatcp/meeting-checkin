@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>会议签到</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    window.API_BASE = ''; // 默认本地存储；后端模式留空即可（同源）
+  </script>
+  <style>
+    body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .seat { transition: all .15s ease; }
+    .seat-highlight { background:#2563eb !important; border:2px solid #1d4ed8 !important; color:#fff !important; box-shadow:0 6px 18px rgba(37,99,235,.55); animation: pulse 1.6s infinite; }
+    @keyframes pulse { 0%,100%{ box-shadow:0 6px 18px rgba(37,99,235,.55);} 50%{ box-shadow:0 6px 24px rgba(37,99,235,.9);} }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- 顶部 -->
+  <header class="bg-gov-dark text-white shadow-md" style="background:#0f2742;">
+    <div class="max-w-2xl mx-auto px-4 py-3 text-center">
+      <div class="text-xs text-slate-300">会议签到</div>
+      <h1 id="mt" class="text-base font-semibold">加载中…</h1>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-6">
+
+    <!-- 会议选择（未带参数时显示） -->
+    <section id="pickerView" class="hidden bg-white rounded-xl shadow-sm p-6">
+      <div class="text-center mb-4">
+        <div class="w-14 h-14 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-2xl mx-auto mb-2">📋</div>
+        <h2 class="text-lg font-semibold">选择会议</h2>
+      </div>
+      <div id="pickerList"></div>
+    </section>
+
+    <!-- 签到表单 -->
+    <section id="formView" class="bg-white rounded-xl shadow-sm p-6">
+      <div class="text-center mb-5">
+        <div class="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-2">📝</div>
+        <h2 class="text-lg font-semibold">参会人员签到</h2>
+        <p class="text-sm text-slate-500">请填写真实信息完成签到</p>
+      </div>
+      <form id="ckForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">姓名 <span class="text-red-500">*</span></label>
+          <input id="ckName" type="text" autocomplete="name" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="请输入姓名" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">单位 <span class="text-red-500">*</span></label>
+          <input id="ckUnit" type="text" autocomplete="organization" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" placeholder="请输入单位名称" />
+        </div>
+        <div id="ckMsg" class="text-sm text-red-600 hidden"></div>
+        <button type="submit" id="ckSubmit" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium text-base">签 到</button>
+      </form>
+      <p class="text-xs text-slate-400 mt-4 text-center">签到后系统将匹配您的座位并高亮显示</p>
+    </section>
+
+    <!-- 签到成功 -->
+    <section id="successView" class="hidden">
+      <div class="bg-white rounded-xl shadow-sm p-6 text-center">
+        <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-3">✅</div>
+        <h2 class="text-lg font-semibold text-emerald-700">签到成功</h2>
+        <p class="text-sm text-slate-500 mt-1" id="suInfo"></p>
+        <div class="mt-5 inline-block bg-blue-50 border border-blue-200 rounded-lg px-5 py-3">
+          <div class="text-xs text-slate-500">您的座位</div>
+          <div class="text-2xl font-bold text-blue-700" id="suSeat">—</div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-sm p-4 mt-4">
+        <h3 class="font-semibold text-sm mb-3 text-center">座位图（您的座位已高亮）</h3>
+        <div id="seatMap" class="overflow-x-auto pb-2"></div>
+        <p class="text-xs text-slate-400 mt-2 text-center">仅展示本人座位，其他人员信息已隐藏</p>
+      </div>
+
+      <button id="againBtn" class="w-full mt-4 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg text-sm">重新签到</button>
+    </section>
+
+    <!-- 失败 -->
+    <section id="failView" class="hidden bg-white rounded-xl shadow-sm p-6 text-center">
+      <div class="w-16 h-16 rounded-full bg-orange-50 text-orange-600 flex items-center justify-center text-3xl mx-auto mb-3">⚠️</div>
+      <h2 class="text-lg font-semibold text-orange-700">签到未通过</h2>
+      <p class="text-sm text-slate-500 mt-1" id="failMsg"></p>
+      <button id="retryBtn" class="w-full mt-5 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg text-sm">返回签到</button>
+    </section>
+
+    <!-- 无效会议 -->
+    <section id="invalidView" class="hidden bg-white rounded-xl shadow-sm p-8 text-center">
+      <div class="text-4xl mb-3">🔗</div>
+      <h2 class="font-semibold">签到链接无效</h2>
+      <p class="text-sm text-slate-500 mt-1">未找到对应会议，请重新扫码或联系会务人员。</p>
+    </section>
+  </main>
+
+  <footer class="text-center text-xs text-slate-400 py-6">会议签到系统 · 政务会议版</footer>
+
+  <script src="js/common.js"></script>
+  <script src="js/checkin.js"></script>
+</body>
+</html>

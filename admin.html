@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>会议签到系统 · 管理后台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // 启用后端模式（Vercel/Netlify Serverless）
+    window.API_BASE = '';
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            gov: { dark: '#0f2742', main: '#1e3a5f', accent: '#2563eb' }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
+    .seat { transition: all .15s ease; }
+    .seat:hover { transform: scale(1.08); z-index: 5; }
+    .seat-empty { background:#f1f5f9; border:1px solid #e2e8f0; color:#94a3b8; }
+    .seat-uncheck { background:#fff7ed; border:1px solid #fdba74; color:#c2410c; }
+    .seat-checked { background:#dcfce7; border:1px solid #4ade80; color:#15803d; }
+    .seat-highlight { background:#2563eb !important; border:2px solid #1d4ed8 !important; color:#fff !important; box-shadow:0 4px 14px rgba(37,99,235,.5); }
+    .nav-item.active { background:#1e3a5f; color:#fff; }
+    @media (max-width: 768px) { .sidebar { display:none; } .sidebar.open { display:block; } }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+  <!-- 顶部标题栏 -->
+  <header class="bg-gov-dark text-white shadow-md">
+    <div class="max-w-[1400px] mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <button id="menuToggle" class="md:hidden text-2xl">☰</button>
+        <div class="flex items-center gap-2">
+          <div class="w-9 h-9 rounded bg-white text-gov-dark flex items-center justify-center font-bold">会</div>
+          <div>
+            <h1 class="text-lg font-semibold leading-tight">会议签到系统</h1>
+            <p class="text-xs text-slate-300 leading-tight">管理后台</p>
+          </div>
+        </div>
+      </div>
+      <div id="meetingSwitch" class="flex items-center gap-2 text-sm"></div>
+    </div>
+  </header>
+
+  <!-- 登录页 -->
+  <div id="loginView" class="min-h-[calc(100vh-64px)] flex items-center justify-center px-4">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 rounded-full bg-gov-dark text-white flex items-center justify-center text-2xl font-bold mx-auto mb-3">管</div>
+        <h2 class="text-xl font-semibold">管理员登录</h2>
+        <p class="text-sm text-slate-500 mt-1">请输入账号密码进入后台</p>
+      </div>
+      <form id="loginForm" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">用户名</label>
+          <input id="loginUser" type="text" autocomplete="username" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-gov-accent focus:border-gov-accent outline-none" placeholder="admin" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">密码</label>
+          <input id="loginPass" type="password" autocomplete="current-password" class="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-gov-accent focus:border-gov-accent outline-none" placeholder="••••••" />
+        </div>
+        <div id="loginMsg" class="text-sm text-red-600 hidden"></div>
+        <button type="submit" class="w-full bg-gov-main hover:bg-gov-dark text-white py-2.5 rounded-lg font-medium transition">登 录</button>
+        <p class="text-xs text-slate-400 text-center">默认账号：admin / admin123（登录后可修改）</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="appView" class="hidden max-w-[1400px] mx-auto flex gap-6 px-4 py-6">
+    <!-- 侧边导航 -->
+    <aside id="sidebar" class="sidebar w-48 shrink-0">
+      <nav class="bg-white rounded-xl shadow-sm p-2 sticky top-6 space-y-1 text-sm">
+        <a href="#" data-tab="dashboard" class="nav-item active flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer">📊 实时看板</a>
+        <a href="#" data-tab="seatmap" class="nav-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100">💺 座位图</a>
+        <a href="#" data-tab="editor" class="nav-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100">✏️ 座位编辑</a>
+        <a href="#" data-tab="meetings" class="nav-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100">📁 会议管理</a>
+        <a href="#" data-tab="qrcode" class="nav-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100">📱 签到二维码</a>
+        <a href="#" data-tab="account" class="nav-item flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-slate-100">🔐 账号设置</a>
+        <a href="#" id="logoutBtn" class="flex items-center gap-2 px-3 py-2.5 rounded-lg cursor-pointer hover:bg-red-50 text-red-600">🚪 退出登录</a>
+      </nav>
+    </aside>
+
+    <!-- 内容区 -->
+    <main class="flex-1 min-w-0">
+      <div id="tabContent" class="bg-white rounded-xl shadow-sm p-6"></div>
+    </main>
+  </div>
+
+  <!-- 模态框 -->
+  <div id="modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center px-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-auto">
+      <div class="flex items-center justify-between px-5 py-3 border-b sticky top-0 bg-white">
+        <h3 id="modalTitle" class="font-semibold"></h3>
+        <button id="modalClose" class="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
+      </div>
+      <div id="modalBody" class="p-5"></div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-6 right-6 z-50 px-4 py-2.5 rounded-lg shadow-lg text-sm"></div>
+
+  <!-- 库 -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/common.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
