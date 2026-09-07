@@ -1,22 +1,8 @@
 {
   "name": "meeting-checkin-system",
   "version": "1.0.0",
-  "description": "\u8f7b\u91cf\u4f1a\u8bae\u7ebf\u4e0a\u7b7e\u5230Web\u7cfb\u7edf - \u5ea7\u4f4d\u56fe\u53ef\u89c6\u5316 + \u626b\u7801\u7b7e\u5230 + \u53cc\u89d2\u8272\u6743\u9650",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
-  },
-  "keywords": [
-    "meeting",
-    "checkin",
-    "seat-map",
-    "qrcode"
-  ],
+  "description": "轻量会议线上签到Web系统 - 座位图可视化 + 扫码签到 + 双角色权限",
+  "keywords": ["meeting", "checkin", "seat-map", "qrcode"],
   "license": "MIT",
-  "dependencies": {
-    "express": "^4.19.2",
-    "https-proxy-agent": "^9.1.0",
-    "localtunnel": "^2.0.2"
-  }
+  "devDependencies": {}
 }
