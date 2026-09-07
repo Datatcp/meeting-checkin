@@ -1,8 +1,0 @@
-{
-  "name": "meeting-checkin-system",
-  "version": "1.0.0",
-  "description": "轻量会议线上签到Web系统 - 座位图可视化 + 扫码签到 + 双角色权限",
-  "keywords": ["meeting", "checkin", "seat-map", "qrcode"],
-  "license": "MIT",
-  "devDependencies": {}
-}
